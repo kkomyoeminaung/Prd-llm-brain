@@ -1,0 +1,6 @@
+site_name: PRD-LLM Documentation
+theme:
+  name: material
+nav:
+  - Home: index.md
+  - Quick Start: quickstart.md

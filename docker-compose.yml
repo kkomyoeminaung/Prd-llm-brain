@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  prd-llm-api:
+    build: .
+    container_name: prd-llm-api
+    ports:
+      - "8000:8000"
+    environment:
+      - NGROK_AUTH_TOKEN=${NGROK_AUTH_TOKEN}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    volumes:
+      - ./data:/app/data
+      - ./checkpoints:/app/checkpoints
+    restart: unless-stopped
+    networks:
+      - prd-net
+
+  redis:
+    image: redis:alpine
+    container_name: prd-redis
+    networks:
+      - prd-net
+
+networks:
+  prd-net:
+    driver: bridge

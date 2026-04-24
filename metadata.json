@@ -1,0 +1,6 @@
+{
+  "name": "PRD-LLM Brain Framework",
+  "description": "A human-like LLM architecture with Sparse MoE, Synaptic Plasticity, and Self-Correction, designed for training and research.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
