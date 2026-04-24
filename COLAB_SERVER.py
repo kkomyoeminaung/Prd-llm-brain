@@ -158,9 +158,13 @@ async def dream_stats():
 # 3. Server Management
 def start_ngrok():
     import os
-    # ⚠️ Use environment variable or replace with your token
-    token = os.environ.get("NGROK_AUTH_TOKEN", "YOUR_NGROK_AUTH_TOKEN")
-    if token == "YOUR_NGROK_AUTH_TOKEN":
+    try:
+        from google.colab import userdata
+        token = userdata.get('NGROK_AUTH_TOKEN')
+    except:
+        token = os.environ.get("NGROK_AUTH_TOKEN", "YOUR_NGROK_AUTH_TOKEN")
+    
+    if not token or token == "YOUR_NGROK_AUTH_TOKEN":
         print("⚠️ Warning: NGROK_AUTH_TOKEN not set. Remote relay may not work.")
     
     ngrok.set_auth_token(token)
