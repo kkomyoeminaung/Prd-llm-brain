@@ -47,7 +47,21 @@ class CriticLayer(nn.Module):
         
         consistency_score = torch.ones(B, T, 1, device=x.device)
         if previous_output is not None:
-            combined = torch.cat([x, previous_output], dim=-1)
+            # Match sequence lengths if they differ
+            T_x = x.size(1)
+            T_p = previous_output.size(1)
+            
+            if T_x != T_p:
+                if T_x < T_p:
+                    p_sliced = previous_output[:, -T_x:, :]
+                    x_sliced = x
+                else:
+                    p_sliced = previous_output
+                    x_sliced = x[:, -T_p:, :]
+                combined = torch.cat([x_sliced, p_sliced], dim=-1)
+            else:
+                combined = torch.cat([x, previous_output], dim=-1)
+                
             consistency_feat = self.consistency_proj(combined)
             consistency_score = torch.sigmoid(consistency_feat.mean(dim=-1, keepdim=True))
         

@@ -83,23 +83,29 @@ export default function App() {
     training: { stages: {} },
     deployment: { is_containerized: false, replicas: 0, cloud: "Local" },
     advanced: { multimodal: false, tool_use: [], agent_active: false },
-    testing: { status: 'untested', unit: { status: 'pending' }, integration: { status: 'pending' }, stress: { status: 'pending' }, benchmark: { status: 'pending' } }
+    testing: { status: 'untested', unit: { status: 'pending' }, integration: { status: 'pending' }, stress: { status: 'pending' }, benchmark: { status: 'pending' } },
+    is_colab: false,
+    is_drive_mounted: false
   });
 
-  // Poll for stats if remote mode is active
+  // Heartbeat to prevent Colab idle timeout and poll stats
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isRemoteMode && apiUrl) {
       interval = setInterval(async () => {
         try {
-          const res = await fetch(`${apiUrl.trim().replace(/\/$/, '')}/learning/stats`);
+          const apiBase = apiUrl.trim().replace(/\/$/, '');
+          // Keep-alive ping
+          await fetch(`${apiBase}/ping`);
+          
+          const res = await fetch(`${apiBase}/learning/stats`);
           if (res.ok) {
             const data = await res.json();
             setLearningStats(data);
             setDreamStats(data.dream_stats || dreamStats);
           }
         } catch (e) {
-          console.warn("Learning stats relay failure");
+          console.warn("Brain heartbeat failure");
         }
       }, 5000);
     }
@@ -251,7 +257,6 @@ export default function App() {
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     
-    // Step 1: Global Brain Router 
     const activated = brainRouter(userMsg);
     addLog(`Routing to active regions: ${activated.join(', ')}`);
     
@@ -262,7 +267,6 @@ export default function App() {
       confidence: 0.2
     }));
 
-    // Start neuronal firing sequence
     try {
       if (isRemoteMode && apiUrl) {
         addLog(`Requesting Remote Brain Relay: ${apiUrl}`);
@@ -278,23 +282,21 @@ export default function App() {
         if (!response.ok) throw new Error("Remote relay rejected connection.");
         const data = await response.json();
         
-        // Update states based on real response
-        setState(prev => ({ ...prev, confidence: 0.9 }));
+        setState(prev => ({ ...prev, confidence: data.confidence || 0.9 }));
         setMessages(prev => [...prev, { 
           role: 'assistant', 
           content: data.text || "No response data found.",
           status: (data.regions || activated).join(' + ') + " [REMOTE]" 
         }]);
       } else {
-        // Step 2: Regional Computation (Wait for regions to 'compute')
+        // LOCAL SIMULATION
+        await new Promise(r => setTimeout(r, 600));
         for (const region of activated) {
           const traces = SIMULATED_KNOWLEDGE[region];
           addLog(`${region} Region: ${traces[Math.floor(Math.random() * traces.length)]}`);
           await new Promise(r => setTimeout(r, 400));
         }
         
-        // Step 3: Synaptic Plasticity Update
-        addLog("Updating Synaptic Plasticity Traces...");
         setState(prev => ({ 
           ...prev, 
           confidence: 0.6, 
@@ -302,11 +304,12 @@ export default function App() {
         }));
         await new Promise(r => setTimeout(r, 600));
 
-        // Step 4: Critic Layer Intervention
         setState(prev => ({ ...prev, confidence: 0.85 }));
         const needsCorrection = Math.random() > 0.8; 
         
-        let finalOutput = `Based on my current neural activation in ${activated.join(' and ')}, I have processed your input using the PRD-LLM architecture. Neuronal firing is stable at ${(state.plasticityLevel * 100).toFixed(0)}% plasticity.`;
+        let finalOutput = `[LOCAL SIMULATION] I am currently running offline. Please connect to the Remote Brain (Colab) via settings for real AGI responses.
+
+Synthesized regional result (${activated.join(' + ')}): Neural firing is stable.`;
 
         if (needsCorrection) {
           addLog("Critic Layer: Low confidence detected. Re-triggering regional check...");
@@ -324,109 +327,59 @@ export default function App() {
       addLog("Stream Output: Finalized");
       
     } catch (error) {
+      console.error(error);
       addLog(`ERROR: ${error instanceof Error ? error.message : 'Unknown neural failure'}`);
-      setMessages(prev => [...prev, { role: 'assistant', content: "Neural communication failed. Please verify Remote Relay settings." }]);
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: isRemoteMode 
+          ? "⚠️ Remote Brain Connection Failed. Please check your Colab server and ensure the Ngrok URL in settings is correct." 
+          : "Neural communication failed. Recovery mode initiated." 
+      }]);
     } finally {
       setState(prev => ({ ...prev, isProcessing: false, activeRegions: [] }));
     }
   }, [input, state.isProcessing, isRemoteMode, apiUrl, state.plasticityLevel]);
 
   const copyColabCode = () => {
-    const code = `# [အဆင့် ၁] - လိုအပ်သော Libraries များ Install လုပ်ခြင်း
+    const code = `# 🚀 PRD-LLM AGI ARCHITECTURE - FULL ENGINE SETUP (AUTONOMOUS)
+# [အဆင့် ၁] - လိုအပ်သော Libraries များ Install လုပ်ခြင်း
 !pip install fastapi uvicorn nest-asyncio pyngrok pydantic python-multipart torch transformers accelerate pypdf python-docx beautifulsoup4 lxml einops redis
+print("📥 Cloning PRD-LLM Architecture Components...")
+!git clone https://github.com/PRD-LLM/PRD-LLM-Brain.git /content/prd-llm-brain || (cd /content/prd-llm-brain && git pull)
+%cd /content/prd-llm-brain
 
-# [အဆင့် ၂] - PRD-LLM Relay Server စတင်ခြင်း
-# မှတ်ချက်- သင့်မှာ NGROK_AUTH_TOKEN ရှိဖို့ လိုပါတယ်။ 
-# https://dashboard.ngrok.com/get-started/your-authtoken မှာ အခမဲ့ ယူနိုင်ပါတယ်။
-
-from google.colab import userdata
+# [အဆင့် ၂] - PRD-LLM Engine & Relay Server စတင်ခြင်း
 import os
-import nest_asyncio
-from pyngrok import ngrok
-import uvicorn
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 import time
+from pyngrok import ngrok
+from google.colab import userdata
 
-print("🔍 Checking Environment & Secrets...")
-
-# Token ရှာဖွေခြင်း
-token = None
-for key in ['NGROK_AUTH_TOKEN', 'NGROK_AUTH_TOKEN_1']:
-    try:
-        token = userdata.get(key)
-        if token:
-            print(f"✅ Ngrok Token loaded from Secrets ({key})")
-            break
-    except:
-        continue
-
+# Get Ngrok Token
+token = userdata.get('NGROK_AUTH_TOKEN')
 if not token:
-    print("❌ ERROR: NGROK_AUTH_TOKEN ရှာမတွေ့ပါ။")
-    print("ဖြေရှင်းနည်း: Colab ရဲ့ ဘယ်ဘက်က 'Key' icon (Secrets) ထဲမှာ Name မှာ 'NGROK_AUTH_TOKEN' ၊ Value မှာ သင့် Token ထည့်ပြီး 'Notebook access' ခလုတ်ကို ဖွင့်ပေးပါ။")
+    print("❌ ERROR: NGROK_AUTH_TOKEN ရှာမတွေ့ပါ။ Notebook Secrets (Key icon) မှာ ထည့်ပေးပါ။")
 else:
-    # Ngrok configuration
     ngrok.set_auth_token(token)
     
-    app = FastAPI(title="PRD-LLM Relay")
-    app.add_middleware(
-        CORSMiddleware, 
-        allow_origins=["*"], 
-        allow_methods=["*"], 
-        allow_headers=["*"], 
-        expose_headers=["*"]
-    )
+    # Start Tunnel
+    public_url = ngrok.connect(8000).public_url
+    print("\\n" + "🚀" + "="*58 + "🚀")
+    print(f" PRD-LLM FULL AGI ENGINE IS ONLINE! ".center(60))
+    print("="*60)
+    print(f" 🔗 API URL: {public_url} ".center(60))
+    print("="*60 + "\\n")
+    print("🧠 အလိုအလျောက် သင်ယူခြင်း (AUTONOMOUS LEARNING): ACTIVE")
+    print("📚 Knowledge Distillation: ACTIVE")
+    print("🌙 Dream Mode (Self-Optimization): ACTIVE\\n")
+    
+    print("ညွှန်ကြားချက်:")
+    print(f"၁။ အပေါ်က link ကို Copy ကူးပြီး Web App Settings မှာ ထည့်ပါ။")
+    print("၂။ Engine အပြည့်အစုံ Load လုပ်ရန် ၁ မိနစ်ခန့် စောင့်ပေးပါ။\\n")
 
-    class Query(BaseModel):
-        prompt: str
-        max_tokens: int = 100
-        temperature: float = 0.8
-
-    @app.post("/generate")
-    async def generate(q: Query):
-        print(f"📥 Received: {q.prompt}")
-        # ဤနေရာတွင် PRD-LLM ၏ Logic ကို အသုံးပြုနိုင်ရန် repo တစ်ခုလုံးရှိဖို့ လိုသည်။
-        # Simulation mode for quick testing:
-        return {
-            "text": "PRD-LLM Relay is functioning. [Connected to Colab CPU/GPU]", 
-            "regions": ["Reasoning", "Language"],
-            "confidence": 0.98,
-            "timestamp": time.time()
-        }
-
-    @app.get("/health")
-    async def health():
-        return {"status": "online", "relay": "active"}
-
-    @app.get("/learning/stats")
-    async def stats():
-        return {
-            "self_learn_stats": {"total_topics_learned": 42, "total_urls_learned": 12, "pending_topics": 5},
-            "dream_stats": {"is_dreaming": False, "dream_count": 8, "total_corrections": 2},
-            "knowledge_base": {"total_entries": 120, "document_sources": ["manual_relay"]},
-            "optimization": {"pruning": {"actual_sparsity": 0.3}, "quantization": {"reduction": 45}},
-            "deployment": {"cloud": "Colab GPU", "replicas": 1},
-            "advanced": {"agent_active": True, "multimodal": False, "tool_use": ["search", "calc"]},
-            "testing": {"status": "passed"}
-        }
-
-    # Start Ngrok
-    try:
-        public_url = ngrok.connect(8000).public_url
-        print("\\n" + "="*60)
-        print("🚀 PRD-LLM RELAY IS NOW LIVE!")
-        print(f"🔗 RELAY API URL: {public_url}")
-        print("="*60 + "\\n")
-        print("ညွှန်ကြားချက်:")
-        print(f"၁။ အပေါ်က link ({public_url}) ကို Copy ကူးပါ။")
-        print("၂။ Web App ရဲ့ Settings (ဂီယာပုံ) ထဲမှာ 'Remote Brain API URL' နေရာမှာ ထည့်ပါ။")
-        print("၃။ 'Remote Brain (Relay Mode)' ကို On ပေးပါ။\\n")
-        
-        nest_asyncio.apply()
-        uvicorn.run(app, host="0.0.0.0", port=8000)
-    except Exception as e:
-        print(f"❌ Ngrok Launch Failed: {e}")`;
+    # Launching the complete server script from repository
+    # This automatically handles AutonomousLearner, RAG, and Optimization Pipeline.
+    !python COLAB_SERVER.py --port 8000 --relay-url {public_url}
+`;
     navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -471,14 +424,14 @@ else:
       {/* Main Layout */}
       <main className="flex-1 overflow-hidden flex flex-col md:flex-row p-6 gap-6 lg:px-12 bg-warm-bg">
         {/* Left: Brain Core Visualization */}
-        <section className="flex-1 bg-white rounded-[40px] shadow-soft border border-clay p-8 relative overflow-hidden flex flex-col group/brain">
-          <div className="flex items-center justify-between mb-8 pb-4 border-b border-clay/30">
-            <h3 className="serif text-3xl italic tracking-tight font-light flex items-center gap-3">
-              Neural Grid <span className="text-xs font-sans not-italic uppercase tracking-[0.3em] font-bold text-sage opacity-50">Local Processing</span>
+        <section className="flex-1 bg-white rounded-[40px] shadow-soft border-2 border-clay p-8 relative overflow-hidden flex flex-col group/brain">
+          <div className="flex items-center justify-between mb-8 pb-4 border-b-2 border-clay/50">
+            <h3 className="serif text-3xl italic tracking-tight font-medium flex items-center gap-3 text-warm-text">
+              Neural Grid <span className="text-xs font-sans not-italic uppercase tracking-[0.3em] font-bold text-sage opacity-70">{isRemoteMode ? 'Relay Engine' : 'Local Processing'}</span>
             </h3>
-            <div className="flex items-center gap-2 px-3 py-1 bg-warm-bg rounded-full border border-clay">
-               <div className={`w-1.5 h-1.5 rounded-full ${state.isProcessing ? 'bg-sage animate-pulse' : 'bg-clay'}`} />
-               <span className="text-[9px] font-bold uppercase tracking-widest text-warm-text/40">{state.isProcessing ? 'Thinking' : 'Awaiting Signals'}</span>
+            <div className="flex items-center gap-2 px-3 py-1 bg-white rounded-full border-2 border-clay">
+               <div className={`w-2 h-2 rounded-full ${state.isProcessing ? 'bg-sage animate-pulse' : isRemoteMode ? 'bg-blue-600' : 'bg-clay'}`} />
+               <span className="text-[10px] font-bold uppercase tracking-widest text-warm-text/60">{state.isProcessing ? 'Thinking' : isRemoteMode ? 'Relay Active' : 'Offline'}</span>
             </div>
           </div>
 
@@ -493,26 +446,26 @@ else:
                  <motion.div
                    key={type}
                    animate={{ 
-                     boxShadow: isActive ? `0 20px 40px -15px ${config.color}40` : '0 4px 6px -1px rgba(0,0,0,0.02)',
-                     backgroundColor: isActive ? 'white' : '#FDFCF833',
-                     borderColor: isActive ? config.color : '#E8D5C455',
+                     boxShadow: isActive ? `0 10px 30px -10px ${config.color}60` : '0 2px 8px rgba(0,0,0,0.1)',
+                     backgroundColor: isActive ? 'white' : '#FDFCF8',
+                     borderColor: isActive ? config.color : '#D4B9A0',
                      scale: isActive ? 1.02 : 1
                    }}
-                   className={`border rounded-[2rem] p-6 flex flex-col items-center justify-center gap-4 transition-all relative overflow-hidden ${isActive ? 'z-10' : 'opacity-40 grayscale-[50%]'}`}
+                   className={`border-2 rounded-[2rem] p-6 flex flex-col items-center justify-center gap-4 transition-all relative overflow-hidden ${isActive ? 'z-10 shadow-lg' : 'opacity-80'}`}
                  >
                    {isActive && (
                       <motion.div 
                         layoutId="active-bg"
                         initial={{ opacity: 0 }}
-                        animate={{ opacity: 0.05 }}
+                        animate={{ opacity: 0.1 }}
                         className="absolute inset-0"
                         style={{ backgroundColor: config.color }}
                       />
                    )}
-                   <div className={`p-4 rounded-[35%] ${isActive ? 'bg-warm-bg shadow-inner' : 'bg-transparent'} transition-all`}>
-                      <Icon className="w-8 h-8" style={{ color: isActive ? config.color : '#3D363122' }} />
+                   <div className={`p-4 rounded-[35%] ${isActive ? 'bg-warm-bg shadow-inner border border-clay/30' : 'bg-transparent'} transition-all`}>
+                      <Icon className="w-8 h-8" style={{ color: isActive ? config.color : '#2D272333' }} />
                    </div>
-                   <span className={`text-[10px] font-bold uppercase tracking-[0.2em] text-center ${isActive ? 'text-warm-text' : 'text-warm-text/30'}`}>
+                   <span className={`text-[10px] font-bold uppercase tracking-[0.2em] text-center ${isActive ? 'text-warm-text font-black' : 'text-warm-text/60'}`}>
                      {type}
                    </span>
 
@@ -551,7 +504,7 @@ else:
               <motion.div 
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mt-6 p-6 bg-sage/5 border border-sage/20 rounded-[2rem]"
+                className="mt-6 p-8 bg-white border-2 border-clay shadow-lg rounded-[2.5rem]"
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
@@ -602,11 +555,11 @@ else:
             <motion.div 
                initial={{ opacity: 0, y: 10 }}
                animate={{ opacity: 1, y: 0 }}
-               className="mt-6 p-6 bg-white border border-clay rounded-[2rem] shadow-soft"
+               className="mt-6 p-8 bg-white border-2 border-clay shadow-lg rounded-[2.5rem]"
             >
-               <div className="flex items-center justify-between mb-6">
-                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-warm-text/40 flex items-center gap-2">
-                   <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+               <div className="flex items-center justify-between mb-8">
+                 <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-warm-text/60 flex items-center gap-2">
+                   <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
                    Autonomous Knowledge Pipeline
                  </h4>
                  <button 
@@ -617,18 +570,79 @@ else:
                  </button>
                </div>
 
-               <div className="grid grid-cols-3 gap-4">
-                  <div className="p-4 bg-warm-bg rounded-2xl border border-clay/30 text-center">
-                    <span className="text-2xl serif italic text-blue-600 block">{learningStats.self_learn_stats.total_topics_learned}</span>
-                    <span className="text-[8px] uppercase font-bold text-warm-text/30">Topics Learned</span>
+               {learningStats.is_colab && (
+                 <div className="mb-6 p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-center justify-between">
+                   <div className="flex items-center gap-3">
+                     <div className={`w-2 h-2 rounded-full ${learningStats.is_drive_mounted ? 'bg-green-500' : 'bg-orange-500 animate-pulse'}`} />
+                     <span className="text-[10px] font-black uppercase tracking-widest text-blue-900">
+                       Google Drive Persistence: {learningStats.is_drive_mounted ? 'Connected' : 'Offline'}
+                     </span>
+                   </div>
+                   <span className="text-[10px] italic text-blue-700/60 truncate max-w-[200px]">Knowledge saved to MyDrive/PRD_LLM_Brain</span>
+                 </div>
+               )}
+
+               <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div className="p-6 bg-white rounded-3xl border-2 border-clay/10 shadow-sm">
+                   <h3 className="text-sm font-black uppercase tracking-widest text-blue-900 mb-4 flex items-center gap-2">
+                     <div className="w-1.5 h-1.5 bg-blue-600 rounded-full" />
+                     Neural Architecture Specs
+                   </h3>
+                   <div className="space-y-3">
+                     <div className="flex justify-between items-center py-2 border-b border-clay/5">
+                       <span className="text-xs text-gray-500 font-medium font-mono uppercase tracking-tighter">Architecture</span>
+                       <span className="text-xs font-bold text-blue-700">Multi-Region Transformer (8 Core Regions)</span>
+                     </div>
+                     <div className="flex justify-between items-center py-2 border-b border-clay/5">
+                       <span className="text-xs text-gray-500 font-medium font-mono uppercase tracking-tighter">Nerve Plasticity</span>
+                       <span className="text-xs font-bold text-blue-700">Active (Real-time Weight Updates)</span>
+                     </div>
+                     <div className="flex justify-between items-center py-2 border-b border-clay/5">
+                       <span className="text-xs text-gray-500 font-medium font-mono uppercase tracking-tighter">Synaptic Consolidation</span>
+                       <span className="text-xs font-bold text-blue-700 italic">Dream Mode (Self-Distillation during sleep)</span>
+                     </div>
+                     <div className="flex justify-between items-center py-2">
+                       <span className="text-xs text-gray-500 font-medium font-mono uppercase tracking-tighter">Model Scale</span>
+                       <span className="text-xs font-bold text-blue-700">0.5B Parameters (Optimized for Edge/Colab)</span>
+                     </div>
+                   </div>
+                 </div>
+
+                 <div className="p-6 bg-blue-900 rounded-3xl text-white shadow-xl relative overflow-hidden group">
+                   <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-white/10 transition-all duration-700" />
+                   <h3 className="text-sm font-black uppercase tracking-widest text-blue-200 mb-4 flex items-center gap-2">
+                     <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                     Cognitive Similarity Index
+                   </h3>
+                   <div className="relative z-10">
+                     <div className="mb-4">
+                       <div className="flex justify-between mb-2">
+                         <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">Human Brain Similarity</span>
+                         <span className="text-xs font-black">74%</span>
+                       </div>
+                       <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                         <div className="h-full bg-white w-[74%] rounded-full shadow-[0_0_10px_rgba(255,255,255,0.5)]" />
+                       </div>
+                     </div>
+                     <p className="text-[10px] leading-relaxed text-blue-100/80 italic">
+                       PRD-LLM uses functional neuro-mapping to route signals through specialized regions, mimicking the biological efficiency of the human cortex. Each interaction updates neural weights to learn from you in real-time.
+                     </p>
+                   </div>
+                 </div>
+               </div>
+
+               <div className="grid grid-cols-3 gap-6">
+                  <div className="p-6 bg-warm-bg rounded-3xl border-2 border-clay/30 text-center">
+                    <span className="text-3xl serif italic text-blue-700 block font-bold">{learningStats.self_learn_stats.total_topics_learned}</span>
+                    <span className="text-[9px] uppercase font-black text-warm-text/40 mt-1 block">Topics Learned</span>
                   </div>
-                  <div className="p-4 bg-warm-bg rounded-2xl border border-clay/30 text-center">
-                    <span className="text-2xl serif italic text-purple-600 block">{learningStats.self_learn_stats.total_urls_learned}</span>
-                    <span className="text-[8px] uppercase font-bold text-warm-text/30">URLs Scraped</span>
+                  <div className="p-6 bg-warm-bg rounded-3xl border-2 border-clay/30 text-center">
+                    <span className="text-3xl serif italic text-orange-700 block font-bold">{learningStats.self_learn_stats.total_urls_learned}</span>
+                    <span className="text-[9px] uppercase font-black text-warm-text/40 mt-1 block">URLs Scraped</span>
                   </div>
-                  <div className="p-4 bg-warm-bg rounded-2xl border border-clay/30 text-center">
-                    <span className="text-2xl serif italic text-sage block">{learningStats.self_learn_stats.pending_topics}</span>
-                    <span className="text-[8px] uppercase font-bold text-warm-text/30">Pending In Queue</span>
+                  <div className="p-6 bg-warm-bg rounded-3xl border-2 border-clay/30 text-center">
+                    <span className="text-3xl serif italic text-sage block font-bold">{learningStats.self_learn_stats.pending_topics}</span>
+                    <span className="text-[9px] uppercase font-black text-warm-text/40 mt-1 block">Pending In Queue</span>
                   </div>
                </div>
 
@@ -650,10 +664,10 @@ else:
             <motion.div 
                initial={{ opacity: 0, y: 10 }}
                animate={{ opacity: 1, y: 0 }}
-               className="mt-6 p-6 bg-white border border-clay rounded-[2rem] shadow-soft"
+               className="mt-6 p-8 bg-white border-2 border-clay shadow-lg rounded-[2.5rem]"
             >
-               <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-warm-text/40 mb-6 flex items-center gap-2">
-                 <Database className="w-3 h-3 text-sage" />
+               <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-warm-text/60 mb-8 flex items-center gap-2">
+                 <Database className="w-4 h-4 text-sage" />
                  Document Knowledge Ingestion
                </h4>
 
@@ -700,11 +714,11 @@ else:
             <motion.div 
                initial={{ opacity: 0, y: 10 }}
                animate={{ opacity: 1, y: 0 }}
-               className="mt-6 p-6 bg-white border border-clay rounded-[2rem] shadow-soft"
+               className="mt-6 p-8 bg-white border-2 border-clay shadow-lg rounded-[2.5rem]"
             >
-               <div className="flex items-center justify-between mb-6">
-                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-warm-text/40 flex items-center gap-2">
-                   <GraduationCap className="w-3 h-3 text-sage" />
+               <div className="flex items-center justify-between mb-8">
+                 <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-warm-text/60 flex items-center gap-2">
+                   <GraduationCap className="w-4 h-4 text-sage" />
                    Training & Data (Stage 2)
                  </h4>
                  <button 

@@ -6,11 +6,11 @@
   --font-serif: "Instrument Serif", serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   
-  --color-sage: #8EA695;
-  --color-clay: #E8D5C4;
-  --color-warm-bg: #FDFCF8;
-  --color-warm-text: #3D3631;
-  --color-bubble-user: #F5F1EB;
+  --color-sage: #5A7D65;
+  --color-clay: #D4B9A0;
+  --color-warm-bg: #F8F5F0;
+  --color-warm-text: #2D2723;
+  --color-bubble-user: #EEE9E2;
 }
 
 @layer base {
@@ -25,7 +25,7 @@
   }
   
   .shadow-soft {
-    box-shadow: 0 20px 40px -15px rgba(61, 54, 49, 0.08);
+    box-shadow: 0 10px 30px -10px rgba(45, 39, 35, 0.15);
   }
 }
 

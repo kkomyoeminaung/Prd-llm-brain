@@ -8,6 +8,7 @@ import json
 import asyncio
 import threading
 import time
+import torch
 from typing import Dict, Optional
 from datetime import datetime
 
@@ -199,8 +200,8 @@ class AutonomousLearner:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             while True:
-                time.sleep(interval_hours * 3600)
                 loop.run_until_complete(self.full_learning_cycle())
+                time.sleep(interval_hours * 3600)
         
         thread = threading.Thread(target=background_loop, daemon=True)
         thread.start()
