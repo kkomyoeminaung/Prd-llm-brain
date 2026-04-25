@@ -14,6 +14,7 @@ from typing import List, Optional
 import uvicorn
 import nest_asyncio
 import time
+import os
 from pyngrok import ngrok
 
 # 1. Component Optimization & Initialization
@@ -36,24 +37,45 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 config = PRDLLMConfig(vocab_size=32000, d_model=256, n_layers=4, n_heads=4, d_ff=512)
 model = PRDLLMBrain(config)
 
-# GPU Acceleration
+# GPU Acceleration & FP16 Optimization
 device = "cuda" if torch.cuda.is_available() else "cpu"
-model = model.to(device)
-print(f"✅ Model loaded on: {device}")
+if device == "cuda":
+    model = model.to(device).half()
+    print(f"✅ Model loaded on: {device} (FP16 Optimized)")
+else:
+    model = model.to(device)
+    print(f"✅ Model loaded on: {device}")
 
 tokenizer = PRDTokenizer(vocab_size=32000)
 
 opt_pipeline = OptimizationPipeline(model)
 
-auto_learner = AutonomousLearner(model, tokenizer, device, data_dir="./data")
-# In real Colab, use api_keys from secrets/userdata
-auto_learner.setup_teachers({'MOCK': 'KEY'}) 
+# Persistence Strategy: Use Google Drive prefix if provided in environment
+base_data_path = os.environ.get("PRD_DATA_DIR", ".")
+data_dir = os.path.join(base_data_path, "data")
+kb_path = os.path.join(base_data_path, "knowledge_base")
+
+print(f"💾 Storage Path: {os.path.abspath(base_data_path)}")
+
+# Fetch real API keys from secrets if available
+api_keys = {}
+try:
+    from google.colab import userdata
+    for key in ['GEMINI_API_KEY', 'GROQ_API_KEY']:
+        try:
+            val = userdata.get(key)
+            if val: api_keys[key] = val
+        except: pass
+except: pass
+
+auto_learner = AutonomousLearner(model, tokenizer, device, data_dir=data_dir)
+auto_learner.setup_teachers(api_keys) 
 auto_learner.setup_dream_mode()
 
 # RAG & Ingestion Setup
-kb = KnowledgeBase("./knowledge_base")
+kb = KnowledgeBase(kb_path)
 ingestion_api = DocumentIngestionAPI(kb)
-rag_engine = RAG_PRDLLM(model, tokenizer, "./knowledge_base")
+rag_engine = RAG_PRDLLM(model, tokenizer, kb_path)
 
 # Training & Data System Initialization
 from prd_llm.training.complete_pipeline import TrainingPipeline
@@ -166,16 +188,17 @@ def start_ngrok():
         from google.colab import userdata
         token = userdata.get('NGROK_AUTH_TOKEN')
     except:
-        token = os.environ.get("NGROK_AUTH_TOKEN", "YOUR_NGROK_AUTH_TOKEN")
+        token = os.environ.get("NGROK_AUTH_TOKEN")
     
-    if not token or token == "YOUR_NGROK_AUTH_TOKEN":
-        print("⚠️ Warning: NGROK_AUTH_TOKEN not set. Remote relay may not work.")
-    
-    ngrok.set_auth_token(token)
-    public_url = ngrok.connect(8000).public_url
-    print(f"\n🚀 PRD-LLM RELAY IS ACTIVE!")
-    print(f"🔗 RELAY URL: {public_url}")
-    print(f"Paste this URL into the Web App settings.\n")
+    if token:
+        ngrok.set_auth_token(token)
+        public_url = ngrok.connect(8000).public_url
+        print("\n" + "="*60)
+        print(f"🚀 PRD-LLM RELAY IS ONLINE!")
+        print(f"🔗 FRONTEND URL: {public_url}")
+        print("="*60 + "\n")
+    else:
+        print("❌ NGROK_AUTH_TOKEN not found! Please set it in Secrets.")
 
 if __name__ == "__main__":
     nest_asyncio.apply()

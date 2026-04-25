@@ -71,14 +71,31 @@ class DreamMode:
         self.experience_buffer.add(input_text, output_text, confidence, active_regions)
 
     def _dream_cycle(self):
+        """Real weight consolidation during dream state"""
         print(f"[DreamMode] Cycle #{self.dream_count + 1} starting...")
         self.is_dreaming = True
         
-        # Simulate correction and Hebbian update
-        time.sleep(5) 
-        
-        exps = self.experience_buffer.get_low_confidence_experiences(5)
+        # Consolidate low confidence memories
+        exps = self.experience_buffer.get_low_confidence_experiences(10)
         if exps:
+            print(f"  💭 Dreaming: Consolidating {len(exps)} uncertain memories...")
+            self.model.train()
+            # Lower learning rate for consolidation
+            optimizer = torch.optim.AdamW(self.model.parameters(), lr=5e-6)
+            
+            for exp in exps:
+                text = f"{exp.input_text} {exp.output_text}"
+                tokens = self.tokenizer.encode(text)
+                if not tokens: continue
+                
+                input_ids = torch.tensor([tokens], device=self.device)
+                optimizer.zero_grad()
+                logits, loss, _ = self.model(input_ids, targets=input_ids)
+                if loss is not None:
+                    loss.backward()
+                    optimizer.step()
+            
+            self.model.eval()
             self.total_corrections += len(exps)
             self.experience_buffer.clear_low_confidence()
             

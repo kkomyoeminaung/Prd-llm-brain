@@ -105,12 +105,52 @@ class AutonomousLearner:
         return results['total_qa']
     
     async def _train_on_new_data(self, data_path: str):
-        """Fine-tune model on new data"""
+        """Fine-tune model on new data (Real Weight Updates)"""
         print(f"[AutoLearner] Training on new data from {data_path}")
         
-        # Simplified training step
-        # (Implementation depends on your dataset class)
-        print(f"  ✅ Training complete")
+        if not os.path.exists(data_path):
+            return
+            
+        # Load samples
+        samples = []
+        with open(data_path, 'r') as f:
+            for line in f:
+                try:
+                    samples.append(json.loads(line))
+                except: continue
+        
+        if not samples: return
+        
+        # Take latest 50 samples for quick fine-tuning
+        recent_samples = samples[-50:]
+        
+        # Setup real optimizer
+        self.model.train()
+        optimizer = torch.optim.AdamW(self.model.parameters(), lr=1e-5)
+        
+        print(f"  🧠 Updating neural weights on {len(recent_samples)} samples...")
+        
+        for sample in recent_samples:
+            # We assume sample has 'prompt' and 'response' or is structured for training
+            text = f"{sample.get('prompt', '')} {sample.get('response', '')}"
+            if not text.strip(): continue
+            
+            tokens = self.tokenizer.encode(text)
+            if len(tokens) < 5: continue
+            
+            input_ids = torch.tensor([tokens], device=self.device)
+            targets = input_ids.clone()
+            
+            # Simple single-step SGD
+            optimizer.zero_grad()
+            logits, loss, stats = self.model(input_ids, targets=targets)
+            
+            if loss is not None:
+                loss.backward()
+                optimizer.step()
+        
+        self.model.eval()
+        print(f"  ✅ Neural Plasticity Active: Weights updated.")
     
     async def full_learning_cycle(self):
         """Complete autonomous learning cycle"""
