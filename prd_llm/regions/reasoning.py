@@ -37,7 +37,8 @@ class ReasoningRegion(BaseCognitiveRegion):
         
         patthana_weight = self.patthana_gate(x)
         output = (base_out + causal_out) * patthana_weight
-        self.cot_memory = output.detach()
+        # Fix: Pool memory to [1, 1, D] to allow broadcasting across any Batch/Sequence size changes
+        self.cot_memory = output.mean(dim=[0, 1], keepdim=True).detach()
         
         if update_plasticity:
             output = self.plasticity(output, update=True)
