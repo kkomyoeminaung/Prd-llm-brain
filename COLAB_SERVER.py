@@ -162,6 +162,15 @@ async def generate(req: GenerateRequest):
         "confidence": confidence
     }
 
+@app.get("/")
+async def root():
+    return {
+        "message": "PRD-LLM Relay is ACTIVE",
+        "status": "online",
+        "instructions": "Copy this URL into your Web App Settings -> Remote Brain API URL",
+        "timestamp": time.time()
+    }
+
 @app.get("/health")
 async def health():
     return {"status": "online", "uptime": time.time()}
@@ -251,10 +260,16 @@ def start_ngrok():
     if token:
         ngrok.set_auth_token(token)
         public_url = ngrok.connect(8000).public_url
-        print("\n" + "="*60)
-        print(f"🚀 PRD-LLM RELAY IS ONLINE!")
-        print(f"🔗 FRONTEND URL: {public_url}")
-        print("="*60 + "\n")
+        print("\n" + "🚀" + "="*58 + "🚀")
+        print(f" PRD-LLM RELAY IS ONLINE! ".center(60, " "))
+        print("="*60)
+        print(f" 🔗 API URL: {public_url} ".center(60, " "))
+        print("="*60)
+        print("\n ⚠️ အသုံးပြုနည်း (INSTRUCTIONS):")
+        print(f" ၁။ အပေါ်က API URL ({public_url}) ကို Copy ကူးပါ။")
+        print(" ၂။ Web App ရဲ့ Settings (Gear icon) ထဲမှာ 'Remote Brain API URL' နေရာမှာ ထည့်ပါ။")
+        print(" ၃။ 'Enable Remote Brain (Relay Mode)' ကို On ပေးပါ။")
+        print(" ၄။ Browser ထဲမှာ '0.0.0.0' ဆိုတဲ့ error ပြနေတာကို ဂရုမစိုက်ပါနဲ့။ Colab machine ရဲ့ local address မို့လို့ပါ။\n")
     else:
         print("❌ NGROK_AUTH_TOKEN not found! Please set it in Secrets.")
 
