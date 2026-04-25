@@ -51,7 +51,7 @@ class PRDInferenceEngine:
         input_ids = torch.tensor([self.tokenizer.encode(prompt)], dtype=torch.long)
         input_ids = input_ids.to(self.device)
         
-        output_ids = self.model.generate(input_ids, max_new_tokens, temperature, top_k)
+        output_ids, stats = self.model.generate(input_ids, max_new_tokens, temperature, top_k)
         output_text = self.tokenizer.decode(output_ids[0].tolist())
         
         return output_text

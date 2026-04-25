@@ -13,7 +13,11 @@ from datetime import datetime
 
 from .knowledge_distillation import KnowledgeDistiller, setup_distillation
 from .self_learner import InternetSelfLearner
-from .dream_mode import DreamMode, DreamAwareAPI
+try:
+    from .dream_mode import DreamMode, DreamAwareAPI
+except ImportError:
+    # Fallback definition if top-level import fails
+    from prd_llm.dream_mode import DreamMode, DreamAwareAPI
 
 
 class AutonomousLearner:

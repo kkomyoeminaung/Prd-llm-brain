@@ -45,7 +45,7 @@ class RAG_PRDLLM:
         if hasattr(self.model, 'parameters'):
             input_ids = input_ids.to(next(self.model.parameters()).device)
         
-        output_ids = self.model.generate(
+        output_ids, stats = self.model.generate(
             input_ids,
             max_new_tokens=max_new_tokens,
             temperature=temperature
@@ -59,5 +59,7 @@ class RAG_PRDLLM:
         
         return {
             "text": response,
-            "context_used": context != ""
+            "context_used": context != "",
+            "active_regions": stats.get('active_regions', []),
+            "confidence": stats.get('confidence', 0.8)
         }

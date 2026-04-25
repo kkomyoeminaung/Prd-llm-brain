@@ -132,15 +132,17 @@ class PRDLLMBrain(nn.Module):
     
     @torch.no_grad()
     def generate(self, input_ids: torch.Tensor, max_new_tokens: int = 100,
-                 temperature: float = 0.8, top_k: int = 50) -> torch.Tensor:
+                 temperature: float = 0.8, top_k: int = 50) -> Tuple[torch.Tensor, Dict]:
         
         self.eval()
         generated = input_ids.clone()
         self._prev_output = None
+        last_stats = {}
         
         for step in range(max_new_tokens):
             ctx = generated[:, -self.config.max_seq_len:]
             logits, _, stats = self(ctx, update_plasticity=False)
+            last_stats = stats
             logits = logits[:, -1, :] / temperature
             
             if top_k > 0:
@@ -154,4 +156,4 @@ class PRDLLMBrain(nn.Module):
             if next_token.item() == 2: # Assuming 2 is EOS
                 break
         
-        return generated
+        return generated, last_stats

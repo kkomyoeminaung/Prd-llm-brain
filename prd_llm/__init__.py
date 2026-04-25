@@ -7,6 +7,8 @@ from .brain_model import PRDLLMBrain
 from .tokenizer import PRDTokenizer
 from .trainer import PRDTrainer
 from .inference import PRDInferenceEngine
+from .dream_mode import DreamMode, DreamAwareAPI
+from .autonomous_learner import AutonomousLearner
 
 __version__ = "2.0.0"
 __all__ = [
@@ -16,4 +18,7 @@ __all__ = [
     'PRDTokenizer',
     'PRDTrainer',
     'PRDInferenceEngine',
+    'DreamMode',
+    'DreamAwareAPI',
+    'AutonomousLearner'
 ]

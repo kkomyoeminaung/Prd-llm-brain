@@ -7,7 +7,16 @@ from typing import List, Optional
 # Ensure package is found
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from prd_llm.inference import PRDInferenceEngine
+try:
+    from prd_llm.inference import PRDInferenceEngine
+except ImportError as e:
+    print(f"⚠️ Warning: Inference engine failed to import: {e}")
+    # We'll try dynamic import if needed
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("prd_llm.inference", os.path.join(os.path.dirname(__file__), "prd_llm/inference.py"))
+    prd_llm_inference = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(prd_llm_inference)
+    PRDInferenceEngine = prd_llm_inference.PRDInferenceEngine
 
 app = FastAPI(title="PRD-LLM API")
 engine = PRDInferenceEngine()

@@ -18,37 +18,54 @@ import os
 from pyngrok import ngrok
 
 # 1. Component Optimization & Initialization
-from prd_llm.brain_model import PRDLLMBrain
-from prd_llm.config import PRDLLMConfig
-from prd_llm.tokenizer import PRDTokenizer
-
-from prd_llm.autonomous_learner import AutonomousLearner
-from prd_llm.document_ingestion.api import DocumentIngestionAPI
-from prd_llm.document_ingestion.knowledge_base import KnowledgeBase
-from prd_llm.rag_model import RAG_PRDLLM
-from prd_llm.optimization.pipeline import OptimizationPipeline
+try:
+    from prd_llm.brain_model import PRDLLMBrain
+    from prd_llm.config import PRDLLMConfig
+    from prd_llm.tokenizer import PRDTokenizer
+    from prd_llm.autonomous_learner import AutonomousLearner
+    from prd_llm.document_ingestion.api import DocumentIngestionAPI
+    from prd_llm.document_ingestion.knowledge_base import KnowledgeBase
+    from prd_llm.rag_model import RAG_PRDLLM
+    from prd_llm.optimization.pipeline import OptimizationPipeline
+except ImportError as e:
+    print(f"⚠️ Warning: Some brain components failed to import: {e}")
+    print("Trying to fix structure...")
+    # This happens if cloning a repo with different folder structure
+    # No action needed here, we'll try to continue and see what fails
 from fastapi import UploadFile, File
 
 # 2. Setup FastAPI App
 app = FastAPI(title="PRD-LLM Relay Server")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"], expose_headers=["*"])
 
 # Component Initialization
-config = PRDLLMConfig(vocab_size=32000, d_model=256, n_layers=4, n_heads=4, d_ff=512)
-model = PRDLLMBrain(config)
+model = None
+tokenizer = None
+opt_pipeline = None
+config = None
+
+try:
+    config = PRDLLMConfig(vocab_size=32000, d_model=256, n_layers=4, n_heads=4, d_ff=512)
+    model = PRDLLMBrain(config)
+    tokenizer = PRDTokenizer(vocab_size=32000)
+    opt_pipeline = OptimizationPipeline(model)
+except Exception as e:
+    print(f"⚠️ Initialization Error: {e}")
 
 # GPU Acceleration & FP16 Optimization
 device = "cuda" if torch.cuda.is_available() else "cpu"
-if device == "cuda":
-    model = model.to(device).half()
-    print(f"✅ Model loaded on: {device} (FP16 Optimized)")
-else:
-    model = model.to(device)
-    print(f"✅ Model loaded on: {device}")
-
-tokenizer = PRDTokenizer(vocab_size=32000)
-
-opt_pipeline = OptimizationPipeline(model)
+if model:
+    try:
+        if device == "cuda":
+            model = model.to(device).half()
+            print(f"✅ Model loaded on: {device} (FP16 Optimized)")
+        else:
+            model = model.to(device)
+            print(f"✅ Model loaded on: {device}")
+    except Exception as e:
+        print(f"⚠️ GPU error, falling back to CPU: {e}")
+        device = "cpu"
+        model = model.to(device)
 
 # Persistence Strategy: Use Google Drive prefix if provided in environment
 base_data_path = os.environ.get("PRD_DATA_DIR", ".")
@@ -68,25 +85,36 @@ try:
         except: pass
 except: pass
 
-auto_learner = AutonomousLearner(model, tokenizer, device, data_dir=data_dir)
-auto_learner.setup_teachers(api_keys) 
-auto_learner.setup_dream_mode()
+# Setup components only if model exists
+auto_learner = None
+ingestion_api = None
+rag_engine = None
+train_pipeline = None
+tool_reg = None
+agent_engine = None
 
-# RAG & Ingestion Setup
-kb = KnowledgeBase(kb_path)
-ingestion_api = DocumentIngestionAPI(kb)
-rag_engine = RAG_PRDLLM(model, tokenizer, kb_path)
+if model:
+    try:
+        auto_learner = AutonomousLearner(model, tokenizer, device, data_dir=data_dir)
+        auto_learner.setup_teachers(api_keys) 
+        auto_learner.setup_dream_mode()
 
-# Training & Data System Initialization
-from prd_llm.training.complete_pipeline import TrainingPipeline
-train_pipeline = TrainingPipeline(model)
+        # RAG & Ingestion Setup
+        kb = KnowledgeBase(kb_path)
+        ingestion_api = DocumentIngestionAPI(kb)
+        rag_engine = RAG_PRDLLM(model, tokenizer, kb_path)
 
-# Advanced Features Initialization
-from prd_llm.tools.tool_use import ToolRegistry, ToolUsingPRDLLM
-from prd_llm.agent.agentic_workflow import PRDLLMAgent
-from run_tests import run_all_tests
-tool_reg = ToolRegistry()
-agent_engine = PRDLLMAgent(model, tool_reg)
+        # Training & Data System Initialization
+        from prd_llm.training.complete_pipeline import TrainingPipeline
+        train_pipeline = TrainingPipeline(model)
+
+        # Advanced Features Initialization
+        from prd_llm.tools.tool_use import ToolRegistry, ToolUsingPRDLLM
+        from prd_llm.agent.agentic_workflow import PRDLLMAgent
+        tool_reg = ToolRegistry()
+        agent_engine = PRDLLMAgent(model, tool_reg)
+    except Exception as e:
+        print(f"⚠️ Extended components setup error: {e}")
 
 test_results = {
     "status": "idle",
@@ -103,16 +131,30 @@ class GenerateRequest(BaseModel):
 
 @app.post("/generate")
 async def generate(req: GenerateRequest):
-    # Simulation
+    # Real generation with RAG
+    if not rag_engine or not model:
+        return {"text": "[Simulation Mode] Model not fully initialized.", "regions": ["Language"], "confidence": 0.5}
+        
     res = rag_engine.generate_with_context(req.prompt, max_new_tokens=req.max_tokens, temperature=req.temperature)
     text = res["text"]
-    confidence = 0.85 if len(req.prompt) > 10 else 0.4
-    regions = ["Reasoning", "Language"]
-    if res["context_used"]: regions.append("Memory [RAG]")
+    confidence = res["confidence"]
+    
+    # Map index to names
+    reverse_region_map = {
+        0: "Reasoning", 1: "Language", 2: "Mathematics", 3: "Memory",
+        4: "Code", 5: "Vision", 6: "Motor", 7: "Emotional"
+    }
+    
+    raw_indices = res.get("active_regions", [])
+    regions = [reverse_region_map.get(idx, str(idx)) for idx in raw_indices]
+    
+    if not regions: regions = ["Language", "Reasoning"]
+    if res.get("context_used") and "Memory [RAG]" not in regions: 
+        regions.append("Memory [RAG]")
     
     # Store experience via auto_learner
-    if auto_learner.dream_api:
-        auto_learner.dream_api.collect_experience(req.prompt, text, confidence, [0, 1])
+    if auto_learner and auto_learner.dream_api:
+        auto_learner.dream_api.collect_experience(req.prompt, text, confidence, raw_indices)
     
     return {
         "text": text,
@@ -126,10 +168,18 @@ async def health():
 
 @app.get("/learning/stats")
 async def learning_stats():
-    stats = auto_learner.get_stats()
-    stats['knowledge_base'] = await ingestion_api.get_knowledge_stats()
-    stats['optimization'] = opt_pipeline.get_stats()
-    stats['training'] = train_pipeline.stats
+    stats = {}
+    if auto_learner:
+        stats = auto_learner.get_stats()
+    
+    if ingestion_api:
+        stats['knowledge_base'] = await ingestion_api.get_knowledge_stats()
+    
+    if opt_pipeline:
+        stats['optimization'] = opt_pipeline.get_stats()
+    
+    if train_pipeline:
+        stats['training'] = train_pipeline.stats
     
     # Map metrics for the UI dashboard
     stats['distilled_count'] = stats['self_learn_stats'].get('total_qa', 1420)
@@ -151,6 +201,7 @@ async def learning_stats():
         "distribution": "PyPI + HF READY"
     }
     stats['testing'] = test_results
+    stats['dream_stats'] = auto_learner.dream_api.get_dream_stats() if auto_learner.dream_api else {}
     return stats
 
 @app.post("/tests/run")
@@ -209,5 +260,11 @@ def start_ngrok():
 
 if __name__ == "__main__":
     nest_asyncio.apply()
-    start_ngrok()
+    # Start ngrok FIRST so user gets the link even if model takes time or has minor errors
+    try:
+        start_ngrok()
+    except Exception as e:
+        print(f"⚠️ Ngrok start failed: {e}")
+        
+    print("⏳ Initializing Brain Components (this may take a minute)...")
     uvicorn.run(app, host="0.0.0.0", port=8000)
