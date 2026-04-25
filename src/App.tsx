@@ -332,8 +332,12 @@ export default function App() {
   }, [input, state.isProcessing, isRemoteMode, apiUrl, state.plasticityLevel]);
 
   const copyColabCode = () => {
-    const code = `# PRD-LLM FastAPI Server for Colab
-!pip install fastapi uvicorn nest-asyncio pyngrok
+    const code = `# [အဆင့် ၁] - Dependencies Install
+!pip install fastapi uvicorn nest-asyncio pyngrok pydantic python-multipart torch transformers accelerate pypdf python-docx beautifulsoup4 lxml einops redis
+
+# [အဆင့် ၂] - Server စတင်ခြင်း
+from google.colab import userdata
+import os
 import nest_asyncio
 from pyngrok import ngrok
 import uvicorn
@@ -341,24 +345,44 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+print("🔍 Checking Secrets...")
+token = None
+for key in ['NGROK_AUTH_TOKEN', 'NGROK_AUTH_TOKEN_1']:
+    try:
+        token = userdata.get(key)
+        if token:
+            print(f"✅ Ngrok Token successfully loaded from {key}.")
+            break
+    except:
+        continue
 
-class Query(BaseModel):
-    prompt: str
+if not token:
+    print("❌ ERROR: Secrets ဖတ်လို့ မရပါ။")
+    print("အကြောင်းရင်း: Key icon ထဲမှာ 'NGROK_AUTH_TOKEN' ဆိုတဲ့ ဘေးက 'Notebook access' ခလုတ်လေးကို မဖွင့်ရသေးလို့ ဖြစ်နိုင်ပါတယ်။")
+else:
+    os.environ['NGROK_AUTH_TOKEN'] = token
+    # Configure Ngrok & FastAPI
+    ngrok.set_auth_token(token)
+    
+    app = FastAPI()
+    app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-@app.post("/generate")
-async def generate(q: Query):
-    # model_output = model.generate(q.prompt)
-    return {"text": "PRD-LLM Response from Colab.", "regions": ["Reasoning", "Language"]}
+    class Query(BaseModel):
+        prompt: str
 
-# Replace with your ngrok token
-ngrok.set_auth_token("YOUR_TOKEN")
-public_url = ngrok.connect(8000).public_url
-print(f"🔗 RELAY URL: {public_url}")
+    @app.post("/generate")
+    async def generate(q: Query):
+        # PRD-LLM Logic here
+        return {"text": "PRD-LLM Response from Colab Engine.", "regions": ["Reasoning", "Language"]}
 
-nest_asyncio.apply()
-uvicorn.run(app, host="0.0.0.0", port=8000)`;
+    # Connect Ngrok
+    public_url = ngrok.connect(8000).public_url
+    print(f"\n🚀 PRD-LLM Engine Started!")
+    print(f"🔗 RELAY URL: {public_url}")
+    print("\nCopy this URL into the App Settings to connect the Remote Brain.")
+
+    nest_asyncio.apply()
+    uvicorn.run(app, host="0.0.0.0", port=8000)`;
     navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

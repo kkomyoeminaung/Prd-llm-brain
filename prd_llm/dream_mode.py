@@ -124,3 +124,19 @@ class DreamMode:
             "total_corrections": self.total_corrections,
             "buffer_stats": self.experience_buffer.get_stats()
         }
+
+class DreamAwareAPI:
+    """Wrapper around DreamMode to provide easy access for APIs and AutonomousLearner"""
+    def __init__(self, model, tokenizer, device, enable_dream_mode: bool = True):
+        self.dream_mode = DreamMode(model, tokenizer, device)
+        if enable_dream_mode:
+            self.dream_mode.start()
+            
+    def collect_experience(self, input_text: str, output_text: str, confidence: float, active_regions: List[int]):
+        self.dream_mode.collect_experience(input_text, output_text, confidence, active_regions)
+        
+    def get_dream_stats(self) -> Dict:
+        return self.dream_mode.get_stats()
+        
+    def shutdown(self):
+        self.dream_mode.stop()

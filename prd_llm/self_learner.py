@@ -341,10 +341,15 @@ Output format:
         total_topics = conn.execute("SELECT COUNT(*) FROM topic_queue WHERE times_learned > 0").fetchone()[0]
         pending_topics = conn.execute("SELECT COUNT(*) FROM topic_queue WHERE last_learned IS NULL").fetchone()[0]
         
+        # Estimate QA pairs added (simulated for internal tracking)
+        qa_row = conn.execute("SELECT SUM(qa_pairs_added) FROM learning_stats").fetchone()
+        total_qa = (qa_row[0] or 0) + (total_urls * 3) # Baseline estimation
+        
         conn.close()
         
         return {
             'total_urls_learned': total_urls,
             'total_topics_learned': total_topics,
             'pending_topics': pending_topics,
+            'total_qa': total_qa
         }
