@@ -64,6 +64,17 @@ class CriticLayer(nn.Module):
                 
             consistency_feat = self.consistency_proj(combined)
             consistency_score = torch.sigmoid(consistency_feat.mean(dim=-1, keepdim=True))
+            
+            # Match consistency_score back to full sequence length T_x (e.g. during generation)
+            if T_x > T_p:
+                # Pad with 1.0 (assume high consistency for newly generated tokens)
+                # Note: consistency_score was computed on the overlap (last T_p tokens)
+                padding = torch.ones(B, T_x - T_p, 1, device=x.device)
+                # Important: consistency_score is for the overlap. In generation, 
+                # p_sliced was the WHOLE previous output, which compares to current x[:-1]
+                consistency_score = torch.cat([consistency_score, padding], dim=1) # Pad the new token
+            elif T_x < T_p:
+                consistency_score = consistency_score[:, -T_x:, :]
         
         reliability = confidence * consistency_score
         needs_correction = (reliability < self.threshold).float()

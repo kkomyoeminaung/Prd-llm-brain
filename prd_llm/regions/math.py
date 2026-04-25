@@ -17,7 +17,7 @@ class MathRegion(BaseCognitiveRegion):
         self.numerical_encoder = nn.Sequential(
             nn.Linear(d_model, d_ff),
             nn.GELU(),
-            nn.Linear(d_ff, d_ff // 2),
+            nn.Linear(d_ff, d_model),
             nn.GELU(),
         )
         self.add_gate = nn.Linear(d_model, d_model)

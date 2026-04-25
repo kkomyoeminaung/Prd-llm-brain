@@ -33,7 +33,14 @@ class ReasoningRegion(BaseCognitiveRegion):
         
         if self.cot_memory is not None:
             cot_gate = torch.sigmoid(self.cot_gate(x))
-            base_out = base_out + cot_gate * 0.3 * self.cot_memory
+            # Ensure cot_memory is [1, 1, D] for clean broadcasting
+            mem = self.cot_memory
+            if mem.dim() == 3:
+                mem = mem.mean(dim=[0, 1], keepdim=True)
+            elif mem.dim() == 2:
+                mem = mem.mean(dim=0, keepdim=True).unsqueeze(0)
+            
+            base_out = base_out + cot_gate * 0.3 * mem
         
         patthana_weight = self.patthana_gate(x)
         output = (base_out + causal_out) * patthana_weight
