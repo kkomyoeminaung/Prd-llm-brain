@@ -33,11 +33,18 @@ class ModelQuantizer:
         try:
             # Check if running on CPU or if dynamic quantization is supported
             # In a real environment, you'd target specific platforms
-            quantized_model = torch.quantization.quantize_dynamic(
-                self.model,
-                {nn.Linear},
-                dtype=torch.qint8
-            )
+            if hasattr(torch, "ao") and hasattr(torch.ao, "quantization"):
+                quantized_model = torch.ao.quantization.quantize_dynamic(
+                    self.model,
+                    {nn.Linear},
+                    dtype=torch.qint8
+                )
+            else:
+                quantized_model = torch.quantization.quantize_dynamic(
+                    self.model,
+                    {nn.Linear},
+                    dtype=torch.qint8
+                )
             
             new_size = self._get_model_size_mb()
             self.reduction = (1 - new_size / self.original_size) * 100 if self.original_size > 0 else 0

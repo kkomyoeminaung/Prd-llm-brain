@@ -14,9 +14,7 @@ from typing import List, Optional
 import uvicorn
 import nest_asyncio
 import time
-from tokenizers import Tokenizer
 from pyngrok import ngrok
-import threading
 
 # 1. Component Optimization & Initialization
 from prd_llm.brain_model import PRDLLMBrain
@@ -37,11 +35,17 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 # Component Initialization
 config = PRDLLMConfig(vocab_size=32000, d_model=256, n_layers=4, n_heads=4, d_ff=512)
 model = PRDLLMBrain(config)
+
+# GPU Acceleration
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model = model.to(device)
+print(f"✅ Model loaded on: {device}")
+
 tokenizer = PRDTokenizer(vocab_size=32000)
 
 opt_pipeline = OptimizationPipeline(model)
 
-auto_learner = AutonomousLearner(model, tokenizer, "cpu", data_dir="./data")
+auto_learner = AutonomousLearner(model, tokenizer, device, data_dir="./data")
 # In real Colab, use api_keys from secrets/userdata
 auto_learner.setup_teachers({'MOCK': 'KEY'}) 
 auto_learner.setup_dream_mode()
