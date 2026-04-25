@@ -1,6 +1,14 @@
 /**
  * @license
- * SPDX-License-Identifier: Apache-2.0
+ * PRD-LLM Brain Framework
+ * Copyright (c) 2024 Myo Min Aung
+ * 
+ * Licensed under the GNU General Public License v3.0.
+ * See LICENSE file in the root directory for full license text.
+ * 
+ * Creator: Myo Min Aung (Independent Researcher)
+ * Location: Yangon, Myanmar
+ * Email: kkomyoeminaung@gmail.com
  */
 
 import * as React from 'react';
@@ -36,7 +44,7 @@ import {
   Link as LinkIcon,
   Upload
 } from 'lucide-react';
-import { RegionType, BrainState, REGIONS_CONFIG } from './types.ts';
+import { RegionType, BrainState, REGIONS_CONFIG } from './types';
 
 // PRD-LLM Local Brain Simulation Logic
 // This replicates the Sparse MoE and Plasticity behavior in the browser
