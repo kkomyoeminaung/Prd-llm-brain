@@ -33,18 +33,18 @@ class ReasoningRegion(BaseCognitiveRegion):
         
         if self.cot_memory is not None:
             cot_gate = torch.sigmoid(self.cot_gate(x))
-            # Ensure cot_memory is [1, 1, D] for clean broadcasting
+            # Fix: Ensure cot_memory is strictly [1, 1, D] for universal broadcasting
             mem = self.cot_memory
             if mem.dim() == 3:
                 mem = mem.mean(dim=[0, 1], keepdim=True)
             elif mem.dim() == 2:
-                mem = mem.mean(dim=0, keepdim=True).unsqueeze(0)
+                mem = mem.mean(dim=0, keepdim=True).view(1, 1, -1)
             
             base_out = base_out + cot_gate * 0.3 * mem
         
         patthana_weight = self.patthana_gate(x)
         output = (base_out + causal_out) * patthana_weight
-        # Fix: Pool memory to [1, 1, D] to allow broadcasting across any Batch/Sequence size changes
+        # Fix: Pool memory to [1, 1, D] to allow broadcasting across ANY batch or sequence size
         self.cot_memory = output.mean(dim=[0, 1], keepdim=True).detach()
         
         if update_plasticity:

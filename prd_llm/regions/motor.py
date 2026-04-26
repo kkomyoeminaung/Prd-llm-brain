@@ -28,10 +28,12 @@ class MotorRegion(BaseCognitiveRegion):
         
         base_out = super().forward(x, update_plasticity=False)
         action = self.action_planner(x)
-        self.response_buffer.append(action.detach())
+        # Fix: Store pooled action to allow broadcasting across different sequence lengths in generation
+        self.response_buffer.append(action.mean(dim=[0, 1], keepdim=True).detach())
         
         if len(self.response_buffer) > 1:
             prev_avg = sum(self.response_buffer) / len(self.response_buffer)
+            # prev_avg is now [1, 1, D], action is [B, T, D]. They are broadcast-compatible.
             action = 0.7 * action + 0.3 * prev_avg
         
         output = base_out + action

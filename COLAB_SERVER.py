@@ -165,36 +165,47 @@ class GenerateRequest(BaseModel):
 
 @app.post("/generate")
 async def generate(req: GenerateRequest):
-    # Real generation with RAG
-    if not rag_engine or not model:
-        return {"text": "[Simulation Mode] Model not fully initialized.", "regions": ["Language"], "confidence": 0.5}
+    try:
+        # Real generation with RAG
+        if not rag_engine or not model:
+            return {"text": "[Simulation Mode] Model not fully initialized.", "regions": ["Language"], "confidence": 0.5}
+            
+        res = rag_engine.generate_with_context(req.prompt, max_new_tokens=req.max_tokens, temperature=req.temperature)
+        text = res["text"]
+        confidence = res["confidence"]
         
-    res = rag_engine.generate_with_context(req.prompt, max_new_tokens=req.max_tokens, temperature=req.temperature)
-    text = res["text"]
-    confidence = res["confidence"]
-    
-    # Map index to names
-    reverse_region_map = {
-        0: "Reasoning", 1: "Language", 2: "Mathematics", 3: "Memory",
-        4: "Code", 5: "Vision", 6: "Motor", 7: "Emotional"
-    }
-    
-    raw_indices = res.get("active_regions", [])
-    regions = [reverse_region_map.get(idx, str(idx)) for idx in raw_indices]
-    
-    if not regions: regions = ["Language", "Reasoning"]
-    if res.get("context_used") and "Memory [RAG]" not in regions: 
-        regions.append("Memory [RAG]")
-    
-    # Store experience via auto_learner
-    if auto_learner and auto_learner.dream_api:
-        auto_learner.dream_api.collect_experience(req.prompt, text, confidence, raw_indices)
-    
-    return {
-        "text": text,
-        "regions": regions,
-        "confidence": confidence
-    }
+        # Map index to names
+        reverse_region_map = {
+            0: "Reasoning", 1: "Language", 2: "Mathematics", 3: "Memory",
+            4: "Code", 5: "Vision", 6: "Motor", 7: "Emotional"
+        }
+        
+        raw_indices = res.get("active_regions", [])
+        regions = [reverse_region_map.get(idx, str(idx)) for idx in raw_indices]
+        
+        if not regions: regions = ["Language", "Reasoning"]
+        if res.get("context_used") and "Memory [RAG]" not in regions: 
+            regions.append("Memory [RAG]")
+        
+        # Store experience via auto_learner
+        if auto_learner and auto_learner.dream_api:
+            auto_learner.dream_api.collect_experience(req.prompt, text, confidence, raw_indices)
+        
+        return {
+            "text": text,
+            "regions": regions,
+            "confidence": confidence
+        }
+    except Exception as e:
+        import traceback
+        error_msg = f"Brain Error: {str(e)}\n{traceback.format_exc() if is_colab else ''}"
+        print(f"❌ Generation Error: {error_msg}")
+        return {
+            "text": f"⚠️ Neural Grid Error: {str(e)}. Please check Colab logs for details.",
+            "regions": ["Maintenance"],
+            "confidence": 0.0,
+            "error": str(e)
+        }
 
 @app.get("/")
 async def root():
